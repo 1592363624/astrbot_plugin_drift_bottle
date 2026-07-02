@@ -44,7 +44,7 @@
     "group_notify_message": {
         "type": "string",
         "description": "漂流瓶群通知的消息内容",
-        "default": "有人发送了漂流瓶，看看哪个幸运的人可以捡到！\n发送命令【捡漂流瓶】即可捡起哦",
+        "default": "✨ 有人发送了漂流瓶，看看哪个幸运的人可以捡到！\n🌊 发送命令【捡漂流瓶】即可捡起哦\n📝 你也可以【扔漂流瓶】来扔一个哦",
         "hint": "自定义通知消息内容"
     },
     "group_notify_daily_limit": {
