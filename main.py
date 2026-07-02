@@ -1,9 +1,11 @@
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger, AstrBotConfig
-from typing import Optional
+from typing import Optional, List, Dict
 import asyncio
 import time
+import random
+from datetime import datetime, date
 
 from .bottle_storage import BottleStorage
 from .cloud_bottle_storage import CloudBottleStorage
@@ -12,7 +14,6 @@ from .config_manager import ConfigManager
 from .message_formatter import MessageFormatter
 from .uploaded_bottles_tracker import UploadedBottlesTracker
 
-@register("drift_bottle", "wuyan1003", "一个简单的漂流瓶插件", "1.3.0")
 class DriftBottlePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -23,6 +24,11 @@ class DriftBottlePlugin(Star):
         self.message_formatter = MessageFormatter()
         self.upload_tracker = UploadedBottlesTracker("data")
         self.sync_task = None
+        
+        # 群通知频率控制状态（内存中记录，重启后重置）
+        self._notify_last_time: float = 0.0           # 上次通知的时间戳
+        self._notify_today_count: int = 0             # 今日已通知次数
+        self._notify_today_date: date = date.today()  # 当前统计日期，跨天时重置计数
         
         # 如果启用了云同步，启动定时同步任务
         if self.config_manager.is_cloud_sync_enabled():
@@ -89,6 +95,92 @@ class DriftBottlePlugin(Star):
         except Exception as e:
             logger.error(f"执行同步任务时出错: {str(e)}")
 
+    def _check_notify_frequency(self) -> bool:
+        """检查是否满足群通知频率限制条件，满足返回True，否则返回False"""
+        now = time.time()
+        today = date.today()
+        
+        # 跨天重置计数
+        if today != self._notify_today_date:
+            self._notify_today_date = today
+            self._notify_today_count = 0
+        
+        # 检查每日次数限制（0表示不限制）
+        daily_limit = self.config_manager.get_group_notify_daily_limit()
+        if daily_limit > 0 and self._notify_today_count >= daily_limit:
+            logger.info(
+                f"今日群通知次数已达上限 {daily_limit} 次，跳过本次通知"
+            )
+            return False
+        
+        # 检查最小间隔时间（0表示不限制）
+        min_interval = self.config_manager.get_group_notify_min_interval()
+        if min_interval > 0 and self._notify_last_time > 0:
+            elapsed_minutes = (now - self._notify_last_time) / 60
+            if elapsed_minutes < min_interval:
+                logger.info(
+                    f"距离上次群通知不足 {min_interval} 分钟（已过 {elapsed_minutes:.1f} 分钟），跳过本次通知"
+                )
+                return False
+        
+        return True
+
+    async def _send_group_notification(self, event: AstrMessageEvent):
+        """发送漂流瓶群通知"""
+        # 检查是否启用群通知
+        if not self.config_manager.is_group_notify_enabled():
+            return
+        
+        # 检查频率限制
+        if not self._check_notify_frequency():
+            return
+        
+        try:
+            # 获取 bot 实例
+            bot = event.bot
+            
+            # 获取群列表
+            group_list_result = await bot.call_action("get_group_list")
+            
+            if not group_list_result or "data" not in group_list_result:
+                logger.warning("获取群列表失败或返回数据为空")
+                return
+            
+            groups = group_list_result.get("data", [])
+            if not groups:
+                logger.info("机器人没有加入任何群，无法发送通知")
+                return
+            
+            # 随机选择一个群
+            target_group = random.choice(groups)
+            group_id = target_group.get("group_id")
+            group_name = target_group.get("group_name", "未知群")
+            
+            if not group_id:
+                logger.warning("选中的群没有有效的 group_id")
+                return
+            
+            # 获取通知消息内容
+            notify_message = self.config_manager.get_group_notify_message()
+            
+            # 发送群消息
+            await bot.send_group_msg(
+                group_id=group_id,
+                message=[{"type": "text", "data": {"text": notify_message}}]
+            )
+            
+            # 更新频率控制状态
+            self._notify_last_time = time.time()
+            self._notify_today_count += 1
+            
+            logger.info(
+                f"已向群 {group_name}({group_id}) 发送漂流瓶通知"
+                f"（今日第 {self._notify_today_count} 次）"
+            )
+            
+        except Exception as e:
+            logger.error(f"发送群通知失败: {str(e)}")
+
     @filter.command("扔漂流瓶")
     async def throw_bottle(self, event: AstrMessageEvent, content: str = ""):
         """扔一个漂流瓶"""
@@ -117,6 +209,9 @@ class DriftBottlePlugin(Star):
             sender=event.get_sender_name(),
             sender_id=event.get_sender_id()
         )
+        
+        # 发送群通知（异步执行，不阻塞用户响应）
+        asyncio.create_task(self._send_group_notification(event))
         
         yield event.plain_result(f"你的漂流瓶已经扔进大海了！瓶子的编号是 {bottle_id}")
 

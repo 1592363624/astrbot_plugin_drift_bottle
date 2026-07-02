@@ -34,5 +34,29 @@
         "description": "云漂流瓶服务器的地址",
         "default": "http://47.109.207.155:1145",
         "hint": "服务器地址，包含协议和端口"
+    },
+    "group_notify_enabled": {
+        "type": "bool",
+        "description": "是否启用漂流瓶群通知功能",
+        "default": false,
+        "hint": "开启后，有人扔漂流瓶时会在随机群发送通知"
+    },
+    "group_notify_message": {
+        "type": "string",
+        "description": "漂流瓶群通知的消息内容",
+        "default": "有人发送了漂流瓶，看看哪个幸运的人可以捡到！\n发送命令【捡漂流瓶】即可捡起哦",
+        "hint": "自定义通知消息内容"
+    },
+    "group_notify_daily_limit": {
+        "type": "int",
+        "description": "每天最多发送群通知的次数",
+        "default": 10,
+        "hint": "防止频繁推送，0表示不限制次数"
+    },
+    "group_notify_min_interval": {
+        "type": "int",
+        "description": "两次群通知之间的最小间隔时间（分钟）",
+        "default": 30,
+        "hint": "防止频繁推送，0表示不限制间隔"
     }
 }

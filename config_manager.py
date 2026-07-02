@@ -37,4 +37,20 @@ class ConfigManager:
     
     def get_cloud_server_url(self) -> str:
         """获取云服务器地址"""
-        return self.get_value("cloud_sync_server_url") 
+        return self.get_value("cloud_sync_server_url")
+    
+    def is_group_notify_enabled(self) -> bool:
+        """检查是否启用群通知功能"""
+        return self.get_value("group_notify_enabled")
+    
+    def get_group_notify_message(self) -> str:
+        """获取群通知消息内容"""
+        return self.get_value("group_notify_message")
+
+    def get_group_notify_daily_limit(self) -> int:
+        """获取每天群通知最大次数（0表示不限制）"""
+        return self.get_value("group_notify_daily_limit")
+
+    def get_group_notify_min_interval(self) -> int:
+        """获取两次群通知最小间隔时间（分钟，0表示不限制）"""
+        return self.get_value("group_notify_min_interval")
