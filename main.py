@@ -150,12 +150,15 @@ class DriftBottlePlugin(Star):
             logger.error(f"获取 bot 实例失败: {str(e)}")
         return None
 
-    async def _send_to_random_group(self, bot: Any, notify_message: str) -> bool:
+    async def _send_to_random_group(
+        self, bot: Any, notify_message: str, exclude_group_id: Optional[int] = None
+    ) -> bool:
         """向随机群发送通知消息（核心发送逻辑，不依赖 event）
 
         Args:
             bot: aiocqhttp 的 bot 实例
             notify_message: 要发送的通知文本
+            exclude_group_id: 需要排除的群 ID（如扔漂流瓶所在的群），避免在原群通知
 
         Returns:
             bool: 是否发送成功
@@ -178,6 +181,15 @@ class DriftBottlePlugin(Star):
             if not groups:
                 logger.info("机器人没有加入任何群，无法发送通知")
                 return False
+
+            # 排除指定群（如扔漂流瓶所在的群），避免在原群通知
+            if exclude_group_id is not None:
+                before_count = len(groups)
+                groups = [g for g in groups if g.get("group_id") != exclude_group_id]
+                logger.info(f"已排除扔漂流瓶所在群 {exclude_group_id}，剩余候选群 {len(groups)}/{before_count} 个")
+                if not groups:
+                    logger.info("排除原群后没有其他可用群，无法发送通知")
+                    return False
 
             # 最大重试次数（换群重试）
             max_retries = self.config_manager.get_group_notify_max_retries()
@@ -241,7 +253,10 @@ class DriftBottlePlugin(Star):
         return False
 
     async def _send_group_notification(self, event: AstrMessageEvent):
-        """发送漂流瓶群通知（由扔漂流瓶触发）"""
+        """发送漂流瓶群通知（由扔漂流瓶触发）
+
+        会自动排除扔漂流瓶所在的群，避免在原群通知。
+        """
         # 检查是否启用群通知
         if not self.config_manager.is_group_notify_enabled():
             return
@@ -259,7 +274,17 @@ class DriftBottlePlugin(Star):
             logger.warning("无法获取 bot 实例，跳过群通知")
             return
 
-        await self._send_to_random_group(bot, notify_message)
+        # 获取扔漂流瓶所在的群 ID，用于排除该群
+        exclude_group_id = None
+        try:
+            # aiocqhttp 群消息事件的 raw_message 中包含 group_id
+            raw_message = getattr(event.message_obj, "raw_message", None)
+            if isinstance(raw_message, dict):
+                exclude_group_id = raw_message.get("group_id")
+        except Exception:
+            pass
+
+        await self._send_to_random_group(bot, notify_message, exclude_group_id)
 
     def _parse_cron_expression(self, cron_expr: str) -> dict:
         """解析5字段Cron表达式为 APScheduler CronTrigger 参数
