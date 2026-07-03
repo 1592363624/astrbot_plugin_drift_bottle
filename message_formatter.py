@@ -17,13 +17,18 @@ class MessageFormatter:
 
     @staticmethod
     def create_bottle_message(event: AstrMessageEvent, bottle: Dict, prefix_message: str = "") -> MessageEventResult:
-        """创建漂流瓶消息结果"""
+        """创建漂流瓶消息结果
+
+        将文字和图片统一放入同一个消息链中发送，
+        AstrBot 的消息链原生支持 Plain + Image 混合发送，
+        无需按图片大小拆分消息（拆分会导致文字消息丢失）。
+        """
         message = prefix_message + "\n" if prefix_message else ""
         message += MessageFormatter.format_bottle_message(bottle)
 
-        # 构建消息链
+        # 构建消息链：文字 + 图片统一放在一起
         message_chain = [Comp.Plain(message)]
-        
+
         # 添加图片到消息链
         if bottle.get('images'):
             logger.info(f"Processing {len(bottle['images'])} images")
@@ -37,7 +42,7 @@ class MessageFormatter:
                         # 如果数据已经包含 "base64://"，去掉这个前缀
                         if img_data.startswith('base64://'):
                             img_data = img_data.replace('base64://', '')
-                        
+
                         # 清理base64数据中的空白字符
                         img_data = ''.join(img_data.split())
 
@@ -49,17 +54,9 @@ class MessageFormatter:
                             logger.error(f"Base64 decode failed: {str(e)}")
                             continue
 
-                        # 分批发送大图片
-                        if len(img_data) > 1024 * 1024:  # 如果图片大于1MB
-                            logger.info("Large image detected, sending as separate message")
-                            # 先发送文本消息
-                            event.chain_result(message_chain)
-                            # 再单独发送图片
-                            return event.chain_result([Comp.Image(file=f"base64://{img_data}")])
-                        else:
-                            logger.info("Adding image to message chain")
-                            message_chain.append(Comp.Image(file=f"base64://{img_data}"))
-                            logger.info("Image added successfully")
+                        # 统一添加到消息链中，不按大小拆分
+                        message_chain.append(Comp.Image(file=f"base64://{img_data}"))
+                        logger.info(f"Image added to message chain (size: {len(img_data)} chars)")
                     except Exception as e:
                         logger.error(f"处理base64图片失败: {str(e)}")
                 else:

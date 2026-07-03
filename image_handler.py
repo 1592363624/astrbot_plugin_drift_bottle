@@ -70,51 +70,52 @@ class ImageHandler:
         return None
 
     async def collect_images(self, event: AstrMessageEvent) -> List[Dict]:
-        """收集消息中的所有图片"""
+        """收集消息中的所有图片
+
+        使用 AstrBot 内置的 Image.convert_to_base64() 方法处理图片，
+        该方法通过 MediaResolver 统一处理 URL、本地路径、base64 等各种图片来源，
+        比手动下载更健壮。
+        """
         images = []
-        
+
         # 从消息组件中获取图片
         for component in event.message_obj.message:
             if isinstance(component, Comp.Image):
-                image_data = None
-                url_to_try = None
-                
-                if hasattr(component, 'url') and component.url:
-                    url_to_try = component.url
-                elif hasattr(component, 'file') and component.file:
-                    if os.path.exists(component.file):
-                        try:
-                            with open(component.file, "rb") as f:
-                                image_data = {
-                                    'type': 'base64',
-                                    'data': base64.b64encode(f.read()).decode()
-                                }
-                        except Exception as e:
-                            logger.error(f"读取本地图片失败: {str(e)}")
-                    elif component.file.startswith(("http://", "https://")):
-                        url_to_try = component.file
-                
-                if url_to_try:
-                    image_content = await self._download_image(url_to_try)
-                    if image_content:
-                        image_data = {
+                try:
+                    # 使用 AstrBot 内置方法，统一处理 url/file/path/base64 等所有情况
+                    base64_data = await component.convert_to_base64()
+                    if base64_data:
+                        images.append({
                             'type': 'base64',
-                            'data': base64.b64encode(image_content).decode()
-                        }
-                
-                if image_data:
-                    images.append(image_data)
-
-        # 如果没有从组件中找到图片，尝试从原始消息中提取
-        if not images:
-            image_url = self._extract_image_url(event.message_obj.raw_message)
-            if image_url:
-                image_content = await self._download_image(image_url)
-                if image_content:
-                    images.append({
-                        'type': 'base64',
-                        'data': base64.b64encode(image_content).decode()
-                    })
+                            'data': base64_data
+                        })
+                        logger.info(f"成功收集图片，base64 长度: {len(base64_data)}")
+                except Exception as e:
+                    logger.error(f"转换图片为 base64 失败: {str(e)}")
+                    # 兜底：尝试手动从 url 或 file 字段下载
+                    try:
+                        url_to_try = None
+                        if hasattr(component, 'url') and component.url:
+                            url_to_try = component.url
+                        elif hasattr(component, 'file') and component.file:
+                            if component.file.startswith(("http://", "https://")):
+                                url_to_try = component.file
+                            elif os.path.exists(component.file):
+                                with open(component.file, "rb") as f:
+                                    images.append({
+                                        'type': 'base64',
+                                        'data': base64.b64encode(f.read()).decode()
+                                    })
+                                    continue
+                        if url_to_try:
+                            image_content = await self._download_image(url_to_try)
+                            if image_content:
+                                images.append({
+                                    'type': 'base64',
+                                    'data': base64.b64encode(image_content).decode()
+                                })
+                    except Exception as fallback_err:
+                        logger.error(f"兜底图片下载也失败: {str(fallback_err)}")
 
         return images
 

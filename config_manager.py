@@ -54,3 +54,15 @@ class ConfigManager:
     def get_group_notify_min_interval(self) -> int:
         """获取两次群通知最小间隔时间（分钟，0表示不限制）"""
         return self.get_value("group_notify_min_interval")
+
+    def get_group_notify_max_retries(self) -> int:
+        """获取群通知发送失败时的最大重试次数"""
+        return self.get_value("group_notify_max_retries")
+
+    def is_group_notify_cron_enabled(self) -> bool:
+        """检查是否启用定时群通知"""
+        return self.get_value("group_notify_cron_enabled")
+
+    def get_group_notify_cron_expression(self) -> str:
+        """获取定时群通知的Cron表达式"""
+        return self.get_value("group_notify_cron_expression")

@@ -58,5 +58,23 @@
         "description": "两次群通知之间的最小间隔时间（分钟）",
         "default": 30,
         "hint": "防止频繁推送，0表示不限制间隔"
+    },
+    "group_notify_max_retries": {
+        "type": "int",
+        "description": "群通知发送失败时的最大重试次数（换群重试）",
+        "default": 3,
+        "hint": "当发送失败（如退群、被禁言）时，重新随机选择一个群重试的次数"
+    },
+    "group_notify_cron_enabled": {
+        "type": "bool",
+        "description": "是否启用定时群通知（有未捡起的漂流瓶时定时提醒）",
+        "default": false,
+        "hint": "开启后，将按Cron表达式定时检查并通知"
+    },
+    "group_notify_cron_expression": {
+        "type": "string",
+        "description": "定时群通知的Cron表达式（5字段：分 时 日 月 周）",
+        "default": "0 10,14,18,22 * * *",
+        "hint": "例如 '0 10,14,18,22 * * *' 表示每天10点、14点、18点、22点各执行一次"
     }
 }
